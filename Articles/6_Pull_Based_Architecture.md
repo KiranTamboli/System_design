@@ -68,20 +68,40 @@ A common mistake in pull-based systems is pushing a failed message back to the s
 
 ---
 
-## Case Study: Rider Location Tracking & Kafka
+## Case Study: Real-Time Updates (Uber-like System)
 
-Imagine a ride-sharing app where a **Rider** sends their current location every 500ms.
+A common use case for pull-based brokers is tracking a Rider's location in real-time.
+
+### The Requirement
+*   **Source:** A Rider app sends its GPS coordinates every **500ms**.
+*   **Destination:** The Customer app needs to see the Rider moving smoothly on a map.
+
+### The Problem: Out-of-Order Delivery
+In a standard pull-based queue (like a simple DB or basic SQS), multiple workers pull messages simultaneously.
+1.  **Race Condition:** Worker A pulls the "Location at 2s" message. Worker B pulls the "Location at 4s" message.
+2.  **Processing Latency:** If Worker B is faster, the "Location at 4s" might be published to the Customer **before** "Location at 2s".
+3.  **Result:** The customer's map UI "jumps" backward and forward, creating a terrible experience.
+
+### The Solution: Kafka (Pull Based with Partitions)
+We use a sophisticated pull-based broker like **Kafka** to maintain order.
+
+*   **Partitioning:** We hash the `Rider_ID` so that **all updates from the same rider** always go to the **same Partition**.
+*   **Consumer Group:** Kafka ensures that only **one worker** is assigned to pull from that specific partition at any given time.
+*   **Sequential Processing:** The worker pulls message #1, processes it, then pulls message #2. Order is strictly preserved.
 
 ```mermaid
-graph LR
+graph TD
     Rider[Rider App] -->|500ms| API[API Service]
-    API -->|Insert| MQ[BullMQ / Kafka]
-    MQ -->|Pull| Worker[Worker Node]
-    Worker -->|Publish Socket Event| Customer[Customer App]
-```
+    API -->|Shard by Rider_ID| Kafka[(Kafka Topics / Partitions)]
+    
+    subgraph Worker_Pool
+        Kafka -->|Partition 1| W1[Worker A]
+        Kafka -->|Partition 2| W2[Worker B]
+    end
 
-*   **Order Issue:** In a generic pull queue, messages can arrive **not in order** (e.g., location at 1:00 PM arrives after location at 1:01 PM).
-*   **The Kafka Advantage:** **Kafka** is a pull-based broker that maintains order within partitions. Workers pull messages sequentially, ensuring the customer sees a smooth path for the rider rather than jumping around.
+    W1 -->|Ordered Update| Socket[WebSocket Server]
+    Socket -->|Smooth Path| Customer[Customer App]
+```
 
 ---
 
