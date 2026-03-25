@@ -27,32 +27,61 @@ graph TD
     W3 -.->|Heartbeat| Manager
 ```
 
+### The Manager Strategy (The "Shout")
+
+The Manager doesn't just send messages; it orchestrates the entire flow:
+
+```pseudo
+while (true) {
+    // Throttling: Prevents overwhelming the system
+    if (processed_this_sec < 5) { 
+        if (msg_in_db) {
+            worker = choose_random_worker();
+            send_to_worker(worker, msg);
+            
+            // Mark as 'In Progress' in DB
+            update_db(worker_id, status="processing"); 
+        }
+    }
+}
+```
+
+### Worker Health: The Heartbeat Logic
+
+To ensure the Manager isn't pushing tasks to "ghost" workers, a heartbeat system is required:
+
+*   **Worker side:** Every 10 seconds, the worker sends a "still alive" signal to the Manager.
+*   **Manager side:** 
+    ```pseudo
+    if (CurrentTime - LastHeartbeat > 20s) {
+        mark_worker_as_dead();
+        // Return tasks to queue/assign to new worker
+        reschedule_tasks(worker_id);
+        increase_retry_count();
+    }
+    ```
+
 ---
 
-## Core Mechanism: Health Monitoring and Heartbeats
-
-Unlike the pull model (where workers pick their own tasks), the manager needs to know if a worker is alive. This is done via **Heartbeats**.
-
-1.  **State Updates:** Every 10 seconds, each worker updates its state to the Manager.
-2.  **Health Check:** If the Manager hasn't heard from a worker for more than 20 seconds, it marks the worker as "Dead."
-3.  **Redistribution:** If a worker dies while processing, the Manager updates the database and assigns the task to a new worker (incrementing the retry count).
-
----
-
-## Real-World Example: Email Servers
+## Real-World Example: Email Servers & Pub/Sub
 
 Push-based systems are often used for massive "Shout" operations like sending emails to millions of users.
 
 *   **Pub/Sub:** The "Manager" publishes the email content to a "Shout" channel.
-*   **Acquiring Locks:** Multiple workers receive the "Email Task." They must coordinate (often using a distributed lock) to decide who will proceed, ensuring the user doesn't get 10 copies of the same email.
+*   **Acquiring Locks:** To prevent duplicate emails, workers must:
+    1.  Receive the "Shout."
+    2.  Try to **Acquire a Distributed Lock** (e.g., in Redis) for that specific Email ID.
+    3.  Only the worker with the lock proceeds; others ignore the message.
 
 ---
 
-## Case Study: Scaling the Manager
+## Scaling and Reliability
 
-What happens if the "Push" traffic is too high for one manager?
-*   **Problem:** The Manager becomes overwhelmed and crashes.
-*   **The Solution:** Make the manager **Stateless**. Store all configuration and routing rules in a shared database. If the Manager is overwhelmed, you can simply spin up 10 more Managers behind a Load Balancer.
+### 1. The Manager is Down
+If the Manager crashes, the entire system stops. However, because the Manager is **Stateless** (it just forwards messages), we can scale it horizontally behind a Load Balancer.
+
+### 2. The Worker is Down
+If a worker crashes mid-task, the Manager will detect the missing heartbeat (after 20s) and automatically re-assign the task to a new worker.
 
 ---
 
@@ -60,8 +89,8 @@ What happens if the "Push" traffic is too high for one manager?
 
 | Pros | Cons |
 | :--- | :--- |
-| **Low Latency:** Messages are delivered the instant they are available. | **Overwhelming:** If the manager pushes too fast, workers can crash. |
-| **Centralized Control:** The Manager can implement complex routing (e.g., "Send to the least busy worker"). | **Single Point of Failure:** If the Manager goes down, the whole system stalls (unless scaled and stateless). |
+| **Low Latency:** Messages are delivered the instant they are available. | **Overwhelming:** If the manager pushes too fast, workers can crash (Solved by **Throttling**). |
+| **Centralized Control:** The Manager can implement complex routing (e.g., "Send to the least busy worker"). | **Single Point of Failure:** If the Manager goes down, the whole system stalls (Solved by **Stateless Scaling**). |
 | **Real-Time:** Perfect for instant notifications and chat apps. | **Complexity:** Requires robust "Heartbeat" and "Acknowledgment" logic. |
 
 ---

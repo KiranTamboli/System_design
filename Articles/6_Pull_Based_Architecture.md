@@ -25,45 +25,63 @@ graph LR
     W1 -.->|Delete after Success| Queue
 ```
 
+### The Worker Logic (Pseudo-code)
+
+The worker follows a strict loop to ensure tasks are processed reliably:
+
+```javascript
+while (true) {
+    if (there_is_task) {
+        // 1. Pick it up from the DB/Queue
+        // 2. Mark for deletion + set Visibility Timeout (Lease)
+        //    (e.g., mark for 10 min)
+        perform_task();
+        
+        // 3. Finally delete the message from the queue
+        delete_from_queue();
+    }
+}
+```
+
+### AWS SQS Implementation Detail
+For a Simple Queue Service, the logic specifically handles the "Dead Letter" flow:
+
+```pseudo
+Read from SQS
+Set TTL (Time To Live)
+Try:
+    performTask()
+    if (Success):
+        deleteMessageFromQueue()
+Exception:
+    if (RetryCount > Max):
+        pushToDLQ(failed_msg_db)
+```
+
 ---
 
-## Core Mechanism: The "Lease" Pattern (Visibility Timeout)
+## The Starvation Problem
 
-Because multiple workers are pulling from the same source, we need a way to ensure the same task isn't performed twice. This is solved using a **Lease** or **Visibility Timeout**.
-
-1.  **Pick it up:** A worker polls the queue and finds a task.
-2.  **Mark for Deletion (In-Flight):** The task is marked as "In Progress." It becomes invisible to other workers for a set `Time Interval` (e.g., 10 minutes).
-3.  **Perform:** The worker executes the task.
-4.  **Finally Delete:** Upon success, the worker explicitly deletes the message from the queue.
-
-### What if the worker fails?
-If the worker crashes mid-task, the `Time Interval` expires. The task becomes visible again, and another worker can pick it up. This ensures **At-Least-Once Delivery**.
+A common mistake in pull-based systems is pushing a failed message back to the same database/queue immediately. 
+*   **The Issue:** If a task keeps failing, it stays at the top of the queue, "starving" newer, successful tasks from being processed.
+*   **The Fix:** Always offload failed messages to a **Dead Letter Queue (DLQ)** after $X$ retries.
 
 ---
 
-## Real-World Examples
+## Case Study: Rider Location Tracking & Kafka
 
-| System | Role in Pull Architecture |
-| :--- | :--- |
-| **AWS SQS** | A simple, highly scalable queue system. Uses visibility timeouts. |
-| **Kafka** | A distributed streaming platform. Consumers (pullers) maintain their own "offset" (position) in the log. |
-| **BullMQ** | A Redis-based queue for Node.js. Optimized for fast job polling. |
+Imagine a ride-sharing app where a **Rider** sends their current location every 500ms.
 
----
+```mermaid
+graph LR
+    Rider[Rider App] -->|500ms| API[API Service]
+    API -->|Insert| MQ[BullMQ / Kafka]
+    MQ -->|Pull| Worker[Worker Node]
+    Worker -->|Publish Socket Event| Customer[Customer App]
+```
 
-## Failure Handling: The DLQ Pattern
-
-In the pull model, if a specific task keeps failing (e.g., due to a bug in the code), it would go back to the queue forever. To solve this, we use a **Dead Letter Queue (DLQ)**.
-
-*   **Retry Count:** If a task fails $X$ times, the system stops putting it back in the main queue.
-*   **Offloading:** The "poison pill" task is moved to a separate DLQ for manual inspection by developers.
-
----
-
-## Case Study: Rider Location Tracking
-Imagine a ride-sharing app where a Rider sends their location every 500ms. 
-*   **The Problem:** If we use a simple queue, messages might arrive **out of order** (e.g., Location at 2s arrives after Location at 4s).
-*   **The Pull Solution:** Systems like **Kafka** allow workers to pull messages in the exact order they were sent for a specific "Partition" (specific rider).
+*   **Order Issue:** In a generic pull queue, messages can arrive **not in order** (e.g., location at 1:00 PM arrives after location at 1:01 PM).
+*   **The Kafka Advantage:** **Kafka** is a pull-based broker that maintains order within partitions. Workers pull messages sequentially, ensuring the customer sees a smooth path for the rider rather than jumping around.
 
 ---
 
