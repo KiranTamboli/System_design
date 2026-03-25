@@ -27,6 +27,16 @@ graph TD
     W3 -.->|Heartbeat| Manager
 ```
 
+---
+
+## Core Mechanism: Health Monitoring and Heartbeats
+
+Unlike the pull model (where workers pick their own tasks), the manager needs to know if a worker is alive. This is done via **Heartbeats**.
+
+1.  **State Updates:** Every 10 seconds, each worker updates its state to the Manager.
+2.  **Health Check:** If the Manager hasn't heard from a worker for more than 20 seconds, it marks the worker as "Dead."
+3.  **Redistribution:** If a worker dies while processing, the Manager updates the database and assigns the task to a new worker (incrementing the retry count).
+
 ### The Manager Strategy (The "Shout")
 
 The Manager doesn't just send messages; it orchestrates the entire flow:

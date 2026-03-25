@@ -25,6 +25,20 @@ graph LR
     W1 -.->|Delete after Success| Queue
 ```
 
+---
+
+## Core Mechanism: The "Lease" Pattern (Visibility Timeout)
+
+Because multiple workers are pulling from the same source, we need a way to ensure the same task isn't performed twice. This is solved using a **Lease** or **Visibility Timeout**.
+
+1.  **Pick it up:** A worker polls the queue and finds a task.
+2.  **Mark for Deletion (In-Flight):** The task is marked as "In Progress." It becomes invisible to other workers for a set `Time Interval` (e.g., 10 minutes).
+3.  **Perform:** The worker executes the task.
+4.  **Finally Delete:** Upon success, the worker explicitly deletes the message from the queue.
+
+### What if the worker fails?
+If the worker crashes mid-task, the `Time Interval` expires. The task becomes visible again, and another worker can pick it up. This ensures **At-Least-Once Delivery**.
+
 ### The Worker Logic (Pseudo-code)
 
 The worker follows a strict loop to ensure tasks are processed reliably:
@@ -57,6 +71,16 @@ Exception:
     if (RetryCount > Max):
         pushToDLQ(failed_msg_db)
 ```
+
+---
+
+## Real-World Examples
+
+| System | Role in Pull Architecture |
+| :--- | :--- |
+| **AWS SQS** | A simple, highly scalable queue system. Uses visibility timeouts. |
+| **Kafka** | A distributed streaming platform. Consumers (pullers) maintain their own "offset" (position) in the log. |
+| **BullMQ** | A Redis-based queue for Node.js. Optimized for fast job polling. |
 
 ---
 
