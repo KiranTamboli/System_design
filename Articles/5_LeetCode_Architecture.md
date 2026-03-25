@@ -8,6 +8,28 @@ LeetCode solves this through a decoupled, asynchronous, and sandboxed architectu
 
 ---
 
+## System Requirements
+
+Before diving into the architecture, we must define what the system needs to achieve.
+
+### 1. Functional Requirements
+*   **Authentication (Auth):** Secure user login and profile management.
+*   **Problem List:** A searchable directory of coding challenges.
+*   **Submissions:** The ability to submit code, which includes the problem statement, user code, test cases, and language Choice.
+*   **Leaderboard:** Real-time ranking of users based on performance.
+
+### 2. Non-Functional Requirements
+*   **Scale:** Must handle millions of users and simultaneous submissions.
+*   **Latency:** Critical for a good user experience; the API must be fast, even if code execution takes time.
+*   **Security:** Absolute isolation of user code to protect the underlying infrastructure.
+*   **Observability:** Robust monitoring to track system health and execution metrics.
+*   **CAP Theorem Balance:**
+    *   **Consistency:** Every user sees the same problem state.
+    *   **Availability:** The site must stay up even if some worker nodes fail.
+    *   **Partition Tolerance:** The system remains functional despite network failures between components.
+
+---
+
 ## The Big Picture
 
 Using the components from our design review, here is how the data flows:
