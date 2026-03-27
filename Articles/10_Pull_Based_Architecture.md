@@ -107,24 +107,57 @@ In a standard pull-based queue (like a simple DB or basic SQS), multiple workers
 3.  **Result:** The customer's map UI "jumps" backward and forward, creating a terrible experience.
 
 ### The Solution: Kafka (Pull Based with Partitions)
-We use a sophisticated pull-based broker like **Kafka** to maintain order.
+We use a sophisticated pull-based broker like **Kafka** to maintain order and scale.
 
-*   **Partitioning:** We hash the `Rider_ID` so that **all updates from the same rider** always go to the **same Partition**.
+*   **Partitioning:** We hash the `Driver_ID` so that **all updates from the same driver** always go to the **same Partition**.
 *   **Consumer Group:** Kafka ensures that only **one worker** is assigned to pull from that specific partition at any given time.
-*   **Sequential Processing:** The worker pulls message #1, processes it, then pulls message #2. Order is strictly preserved.
+*   **Sequential Processing:** The worker pulls message #1, processes it, then pulls message #2. Order is strictly preserved for each driver.
+
+#### Scenario 1: What if a Worker (Consumer) Fails?
+If `Worker A` (responsible for `Partition 1`) crashes:
+1.  **Detection:** Kafka's Group Coordinator stops receiving heartbeats from `Worker A`.
+2.  **Rebalancing:** Kafka triggers a rebalance and assigns `Partition 1` to `Worker B`.
+3.  **Resume:** `Worker B` reads the **Last Committed Offset** for `Partition 1` and resumes processing. 
+4.  **Result:** No location updates are lost, and the sequence for those drivers remains intact.
+
+#### Scenario 2: What if we have Multiple Consumers?
+To handle high traffic (e.g., peak hours with many Rapido drivers):
+1.  **Horizontal Scaling:** We add more workers to the **same Consumer Group**.
+2.  **Distribution:** Kafka automatically spreads the 100+ partitions across the 10-20 available workers.
+3.  **Efficiency:** Each worker handles a subset of drivers independently, maximizing throughput without race conditions.
+
+#### Scenario 3: Handling Millions of Drivers
+To support millions of drivers (like Uber/Rapido globally):
+1.  **High Partition Count:** We create topics with hundreds or thousands of partitions.
+2.  **Stateless API:** The API server doesn't care which worker is processing which driver; it just hashes the `Driver_ID` and pushes to Kafka.
+3.  **Independent Workers:** Each worker "Pulls" only its assigned partitions, keeping the system decentralized and highly available.
 
 ```mermaid
 graph TD
-    Rider[Rider App] -->|500ms| API[API Service]
-    API -->|Shard by Rider_ID| Kafka[(Kafka Topics / Partitions)]
-    
-    subgraph Worker_Pool
-        Kafka -->|Partition 1| W1[Worker A]
-        Kafka -->|Partition 2| W2[Worker B]
+    subgraph Drivers
+        D1[Rapido Driver 1]
+        D2[Rapido Driver 2]
+        D3[Uber Driver 3]
     end
 
-    W1 -->|Ordered Update| Socket[WebSocket Server]
-    Socket -->|Smooth Path| Customer[Customer App]
+    API[API Service]
+    Kafka[(Kafka Topic)]
+    
+    D1 & D2 & D3 -->|GPS Update| API
+    API -->|Hash Driver_ID| Kafka
+
+    subgraph Consumer_Group
+        W1[Worker A]
+        W2[Worker B]
+    end
+
+    Kafka --"Partition 1 (D1, D2)"--> W1
+    Kafka --"Partition 2 (D3)"--> W2
+
+    W1 -.->|If W1 Fails| W2
+    W2 --"Takeover P1"--> Socket[WebSocket Server]
+    W1 --> Socket
+    Socket --> Customer[Customer App]
 ```
 
 ---
