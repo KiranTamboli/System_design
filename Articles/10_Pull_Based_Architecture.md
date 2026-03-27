@@ -175,6 +175,23 @@ graph TD
     Socket --> Customer[Customer App]
 ```
 
+### Advanced Optimizations: How the App Stays "Smooth"
+
+#### 1. How does the Customer get Updates? (Polling vs. WebSockets)
+There are two ways the Passenger app receives the driver's location:
+*   **Polling (Pull based):** The app asks the server every 2 seconds: *"Where is the driver now?"*
+    *   *Cons:* High battery drain, high server overhead (1M passengers = 500k requests/sec).
+*   **WebSockets (Push based):** A persistent connection is established. As soon as the Worker processes a Kafka message, it **pushes** the update to the Passenger.
+    *   *Pros:* Low latency, better UX, efficient for real-time.
+
+#### 2. Handling the "Jump" (Dead Reckoning)
+Even with 500ms updates, GPS is not perfect. If the app just teleports the icon, it looks "choppy."
+**Dead Reckoning** is a technique used on the client-side (Passenger app) to show smooth movement:
+1.  **Input:** The app receives the last known `{lat, long}`, `speed`, and `heading`.
+2.  **Prediction:** While waiting for the *next* update, the app **predicts** where the driver will be in the next 100ms based on their current speed and direction.
+3.  **Animation:** The car icon moves smoothly along this predicted path. 
+4.  **Correction:** When the actual next update arrives, the app subtly corrects the position if the prediction was slightly off.
+
 ---
 
 ## Summary: Pros and Cons
