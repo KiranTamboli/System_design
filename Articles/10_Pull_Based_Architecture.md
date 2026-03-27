@@ -109,6 +109,20 @@ In a standard pull-based queue (like a simple DB or basic SQS), multiple workers
 ### The Solution: Kafka (Pull Based with Partitions)
 We use a sophisticated pull-based broker like **Kafka** to maintain order and scale.
 
+```mermaid
+graph TD
+    Rider[Rider App] -->|500ms| API[API Service]
+    API -->|Shard by Rider_ID| Kafka[(Kafka Topics / Partitions)]
+    
+    subgraph Worker_Pool
+        Kafka -->|Partition 1| W1[Worker A]
+        Kafka -->|Partition 2| W2[Worker B]
+    end
+
+    W1 -->|Ordered Update| Socket[WebSocket Server]
+    Socket -->|Smooth Path| Customer[Customer App]
+```
+
 *   **Partitioning:** We hash the `Driver_ID` so that **all updates from the same driver** always go to the **same Partition**.
 *   **Consumer Group:** Kafka ensures that only **one worker** is assigned to pull from that specific partition at any given time.
 *   **Sequential Processing:** The worker pulls message #1, processes it, then pulls message #2. Order is strictly preserved for each driver.
@@ -132,6 +146,7 @@ To support millions of drivers (like Uber/Rapido globally):
 2.  **Stateless API:** The API server doesn't care which worker is processing which driver; it just hashes the `Driver_ID` and pushes to Kafka.
 3.  **Independent Workers:** Each worker "Pulls" only its assigned partitions, keeping the system decentralized and highly available.
 
+#### Complete Fault-Tolerant Architecture:
 ```mermaid
 graph TD
     subgraph Drivers
