@@ -92,6 +92,26 @@ In a high-traffic app like Zomato, a single Rider update `{riderId, orderId, loc
 *   **Action 3 (ML Model):** Predict ETA based on current traffic and speed.
 *   **Action 4 (Notification):** If the rider is near, trigger a "Rider Arriving" push (Throttled via external systems).
 
+### Kafka Message Structure (Example)
+
+When the Producer (API Service) sends an update, it defines the **Topic** and a structured **JSON Body**.
+
+*   **Topic:** `rider-location-stream`
+*   **Message Key:** `ORDER_7782` (Ensures ordering)
+*   **Message Body:**
+```json
+{
+  "riderId": "RIDER_612",
+  "orderId": "ORDER_7782",
+  "location": {
+    "lat": 18.5204,
+    "long": 73.8567
+  },
+  "status": "IN_TRANSIT",
+  "timestamp": "2026-03-30T18:15:30Z"
+}
+```
+
 By using different Consumer Groups, each service scales independently without slowing down the others.
 
 ---
@@ -100,20 +120,47 @@ By using different Consumer Groups, each service scales independently without sl
 
 **Event Sourcing** shift the focus from storing the *current state* of a record (e.g., a Database row) to storing the *full history of events* that led to that state.
 
-### The Wallet Example
-*   **Traditional DB:** You store `Balance: 4000`. If you update it 1,000,000 times, the DB becomes a bottleneck due to lock contention and transaction overhead.
-*   **Event Sourcing:** You store a stream of events:
-    1. `From (-) Anirudh: 2000`
-    2. `To (+) Kiran: 2000`
-    3. `Refund (+) 500`
+### The Wallet Example: Solving the "DB Latency" Problem
+
+In a high-scale financial system (like a digital wallet), the traditional database approach often fails.
+
+#### 1. The Traditional Approach (CRUD)
+```sql
+-- Transaction Start
+UPDATE wallets SET balance = balance + 2000 WHERE user_id = 'Kiran';
+UPDATE wallets SET balance = balance - 2000 WHERE user_id = 'Anirudh';
+-- Transaction Commit
+```
+*   **The Issue:** Every update requires a **Row Lock**. 
+*   **The Bottleneck:** If you have 1,000,000 updates per minute (e.g., during a sale), the database spends most of its time waiting for locks to release. This causes massive **Latency** and can bring the entire system to a halt.
+
+#### 2. The Event Sourcing Approach (Kafka)
+Instead of updating a single row, we treat every transaction as an **Immutable Event**.
+
+*   **Producer:** Sends a message to the `wallet-transactions` topic.
+*   **Body:**
+```json
+{
+  "transactionId": "TXN_99120",
+  "from": "Anirudh",
+  "to": "Kiran",
+  "amount": 2000,
+  "type": "TRANSFER"
+}
+```
+
+*   **Why it fixes Latency:** 
+    1.  **Append-Only:** Kafka just appends this message to a log. There are **no locks** and no complex ACID transactions at the write layer. It is purely sequential I/O, which is incredibly fast.
+    2.  **Async Processing:** A background **Consumer** reads these events one by one and updates a "Final State" table or a cache (Redis) for fast lookups.
+    3.  **Horizontal Scale:** We can partition the `wallet-transactions` topic by `user_id`. Kafka ensures that all transactions for "Kiran" are processed in order, even if we have 50 workers processing other transfers in parallel.
 
 ### Why use Event Sourcing?
-1.  **Audit Trail:** You never lose history. You can see *exactly* how a balance became what it is.
-2.  **Performance:** Appending to a log (Kafka) is much faster than updating a row with ACID transactions in a heavy DB.
-3.  **State Reconstruction:** You can "replay" the events from the beginning to recreate the state at any point in time.
+1.  **Audit Trail:** You never lose history. You can see *exactly* how a balance became what it is by replaying the log.
+2.  **Performance:** Appending to a log is $100x$ faster than updating a row with ACID transactions in a heavy DB.
+3.  **State Reconstruction:** If the current balance database crashes, you can "replay" the events from the beginning to recreate the state perfectly.
 
 > [!WARNING]
-> While powerful, Event Sourcing introduces complexity in "Snapshotting" (periodically saving the current state so you don't have to replay millions of events every time).
+> While powerful, Event Sourcing introduces complexity in **Snapshotting**. To avoid replaying 5 years of data to find today's balance, the system periodically saves the "Current State" (a snapshot) and only replays events that occurred *after* that snapshot.
 
 ---
 
