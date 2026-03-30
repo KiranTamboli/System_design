@@ -24,9 +24,34 @@ graph LR
 
 ---
 
-## 2. Kafka Core: Partitioning and Ordering
+## 2. Kafka Architecture & Core Concepts
 
-Unlike simple queues, Kafka uses a **Topic-Partition** model to scale horizontally while maintaining strict order for related events.
+Kafka is designed as a distributed, partitionable, and replicated commit log. Before diving into partitions, it's important to understand the high-level infrastructure.
+
+### The Kafka Cluster
+A Kafka system (Cluster) consists of multiple **Brokers** (servers) to ensure high availability and load balancing.
+
+```mermaid
+graph TD
+    subgraph Kafka_Cluster
+        B1[Broker 1]
+        B2[Broker 2]
+        B3[Broker 3]
+    end
+
+    P[Producers] -->|Send Msg to Topic| Kafka_Cluster
+    Kafka_Cluster -->|Pull Msg| C[Consumers]
+
+    subgraph Topic_Structure
+        T[Topic: Rider Updates]
+        T --> P1[Partition 1]
+        T --> P2[Partition 2]
+        T --> P3[Partition 3]
+    end
+```
+
+### Partitioning and Ordering
+Unlike simple queues, Kafka uses the **Topic-Partition** model to scale horizontally while maintaining strict order for related events.
 
 ### The Problem: Concurrent Processing vs. Order
 If two workers pull "Update Location" messages for the same Rider simultaneously, a race condition occurs. One might update the map with an older coordinate after a newer one arrived.
@@ -109,6 +134,24 @@ When the Producer (API Service) sends an update, it defines the **Topic** and a 
   },
   "status": "IN_TRANSIT",
   "timestamp": "2026-03-30T18:15:30Z"
+}
+```
+
+#### Message structure for Customer Group (WebSocket)
+When the "Customer Group" consumer reads the location update, it might transform or filter it before pushing it to the user's phone via WebSockets.
+
+*   **Consumer Group:** `customer-ws-group`
+*   **Downstream Message (To App):**
+```json
+{
+  "event": "LOCATION_UPDATE",
+  "data": {
+    "orderId": "ORDER_7782",
+    "lat": 18.5204,
+    "lng": 73.8567,
+    "bearing": 145.2,
+    "estimatedArrival": "18:25:00"
+  }
 }
 ```
 
