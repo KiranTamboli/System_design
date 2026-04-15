@@ -9,9 +9,24 @@ It is an architectural pattern that separates data modification (commands - writ
 Consider an Amazon E-commerce problem where the same data model is used for both Read and Write operations for basic CRUD operations.
 
 **Diagram of Traditional Approach:**
-*   **Presentation Layer**
-*   **Business Logic Layer** (Performs Validations)
-*   **Data Access Layer** -> Updates & Queries -> **Data Store**
+
+```mermaid
+flowchart LR
+    subgraph Application Layers
+        direction TB
+        P[Presentation Layer]
+        B[Business Logic / Validation]
+        DA[Data Access]
+        
+        P --- B
+        B --- DA
+    end
+    
+    DB[(Data Store)]
+    
+    DA -->|Update| DB
+    DB -->|Queries| DA
+```
 
 Write operations generally need more operational resources. This traditional approach leads to several fundamental issues:
 
