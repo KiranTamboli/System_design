@@ -57,11 +57,11 @@ In a simple ring, servers might be spaced unevenly, leading to a "Hot Spot" wher
 
 ```mermaid
 flowchart TD
-    subgraph Data_Flow [Data Placement Request]
-        Client([<b>Client</b>]) -- "1. hash('xyz') = 3" --> RingPos((<b>Pos: 3</b>))
+    subgraph Data_Flow ["Data Placement Request"]
+        Client(["Client"]) -- "1. hash('xyz') = 3" --> RingPos(( "Pos: 3" ))
     end
 
-    subgraph HashRing [<b>Consistent Hash Ring (Range: 0-1023)</b>]
+    subgraph HashRing ["Consistent Hash Ring (Range: 0-1023)"]
         direction LR
         Tick0((0)) --- Tick250((250))
         Tick250 --- Tick500((500))
@@ -69,15 +69,15 @@ flowchart TD
         Tick750 --- Tick1023((1023))
         Tick1023 --- Tick0
         
-        N1["<b>Node 1</b>"]
-        N2["<b>Node 2</b>"]
-        N3["<b>Node 3</b>"]
-        N4["<b>Node 4</b>"]
+        N1["Node 1"]
+        N2["Node 2"]
+        N3["Node 3"]
+        N4["Node 4"]
     end
 
     RingPos -- "2. Assign Clockwise" --> N2
     
-    Note2["<b>Node 2 Logic:</b><br/>'I am responsible for keys in the range 900-1023 and 0-125'"]
+    Note2["Node 2 Logic: I am responsible for keys in the range 900-1023 and 0-125"]
     Note2 -.-> N2
 
     style RingPos fill:#f96,stroke:#333,stroke-width:2px
