@@ -57,23 +57,32 @@ In a simple ring, servers might be spaced unevenly, leading to a "Hot Spot" wher
 
 ```mermaid
 flowchart TD
-    subgraph Hash_Ring [Consistent Hashing Ring]
-        direction LR
-        A1((Node A1)) --- B1((Node B1))
-        B1 --- C1((Node C1))
-        C1 --- A2((Node A2))
-        A2 --- B2((Node B2))
-        B2 --- C2((Node C2))
-        C2 --- A1
+    subgraph Data_Flow [Data Placement Request]
+        Client([<b>Client</b>]) -- "1. hash('xyz') = 3" --> RingPos((<b>Pos: 3</b>))
     end
+
+    subgraph HashRing [<b>Consistent Hash Ring (Range: 0-1023)</b>]
+        direction LR
+        Tick0((0)) --- Tick250((250))
+        Tick250 --- Tick500((500))
+        Tick500 --- Tick750((750))
+        Tick750 --- Tick1023((1023))
+        Tick1023 --- Tick0
+        
+        N1["<b>Node 1</b>"]
+        N2["<b>Node 2</b>"]
+        N3["<b>Node 3</b>"]
+        N4["<b>Node 4</b>"]
+    end
+
+    RingPos -- "2. Assign Clockwise" --> N2
     
-    Key1[Key 1] -->|Hash Mapping| Hash_Ring
-    Key2[Key 2] -->|Hash Mapping| Hash_Ring
-    
-    style Hash_Ring fill:#f9f,stroke:#333,stroke-width:2px
-    
-    Annot[Workflow: Keys hash to a position and walk clockwise to the nearest Node]
-    Annot -.-> Hash_Ring
+    Note2["<b>Node 2 Logic:</b><br/>'I am responsible for keys in the range 900-1023 and 0-125'"]
+    Note2 -.-> N2
+
+    style RingPos fill:#f96,stroke:#333,stroke-width:2px
+    style N2 fill:#bbf,stroke:#333,stroke-width:4px
+    style Client fill:#eee,stroke:#333
 ```
 
 ## Real-Time Examples
