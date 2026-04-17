@@ -57,32 +57,31 @@ In a simple ring, servers might be spaced unevenly, leading to a "Hot Spot" wher
 
 ```mermaid
 flowchart TD
-    subgraph Data_Flow ["Data Placement Request"]
-        Client(["Client"]) -- "1. hash('xyz') = 3" --> RingPos(( "Pos: 3" ))
+    subgraph Data_Placement
+        Client -- "hash_xyz_is_3" --> P3((Pos 3))
     end
 
-    subgraph HashRing ["Consistent Hash Ring (Range: 0-1023)"]
+    subgraph Hash_Ring
         direction LR
-        Tick0((0)) --- Tick250((250))
-        Tick250 --- Tick500((500))
-        Tick500 --- Tick750((750))
-        Tick750 --- Tick1023((1023))
-        Tick1023 --- Tick0
+        T0((0)) --- T250((250))
+        T250 --- T500((500))
+        T500 --- T750((750))
+        T750 --- T1023((1023))
+        T1023 --- T0
         
-        N1["Node 1"]
-        N2["Node 2"]
-        N3["Node 3"]
-        N4["Node 4"]
+        N1[Node 1]
+        N2[Node 2]
+        N3[Node 3]
+        N4[Node 4]
     end
 
-    RingPos -- "2. Assign Clockwise" --> N2
+    P3 -- "Assign Clockwise" --> N2
     
-    Note2["Node 2 Logic: I am responsible for keys in the range 900-1023 and 0-125"]
-    Note2 -.-> N2
+    Logic["Node 2 covers range 900 to 125"]
+    Logic -.-> N2
 
-    style RingPos fill:#f96,stroke:#333,stroke-width:2px
-    style N2 fill:#bbf,stroke:#333,stroke-width:4px
-    style Client fill:#eee,stroke:#333
+    style P3 fill:#f96,stroke:#333
+    style N2 fill:#bbf,stroke:#333
 ```
 
 ## Real-Time Examples
