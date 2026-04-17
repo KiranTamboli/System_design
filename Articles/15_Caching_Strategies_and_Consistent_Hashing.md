@@ -57,19 +57,23 @@ In a simple ring, servers might be spaced unevenly, leading to a "Hot Spot" wher
 
 ```mermaid
 flowchart TD
-    subgraph Ring [The Hash Ring]
-    A1((Node A1)) --- B1((Node B1))
-    B1 --- C1((Node C1))
-    C1 --- A2((Node A2))
-    A2 --- B2((Node B2))
-    B2 --- C2((Node C2))
-    C2 --- A1
+    subgraph Hash_Ring [Consistent Hashing Ring]
+        direction LR
+        A1((Node A1)) --- B1((Node B1))
+        B1 --- C1((Node C1))
+        C1 --- A2((Node A2))
+        A2 --- B2((Node B2))
+        B2 --- C2((Node C2))
+        C2 --- A1
     end
     
-    K1[Key 1] -->|Hash| Ring
-    K2[Key 2] -->|Hash| Ring
+    Key1[Key 1] -->|Hash Mapping| Hash_Ring
+    Key2[Key 2] -->|Hash Mapping| Hash_Ring
     
-    Note right of Ring: Keys walk clockwise to the nearest VNode.
+    style Hash_Ring fill:#f9f,stroke:#333,stroke-width:2px
+    
+    Annot[Workflow: Keys hash to a position and walk clockwise to the nearest Node]
+    Annot -.-> Hash_Ring
 ```
 
 ## Real-Time Examples
