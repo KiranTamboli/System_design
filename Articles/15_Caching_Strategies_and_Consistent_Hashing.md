@@ -35,7 +35,27 @@ sequenceDiagram
     App->>DB: 3. Fetch from DB
     DB-->>App: 4. Data Returned
     App->>Cache: 5. Store Key/Value
-```
+
+---
+
+## Cache Eviction Policies
+Since cache memory is limited (and expensive), we need a strategy to decide which data to remove when the cache is full.
+
+| Policy | Description | Best For |
+| :--- | :--- | :--- |
+| **LRU (Least Recently Used)** | Evicts the item that hasn't been accessed for the longest time. | Most general-purpose workloads. |
+| **LFU (Least Frequently Used)** | Evicts the item with the lowest access frequency. | Identifying and keeping "hot" keys over time. |
+| **FIFO (First-In, First-Out)** | Evicts the oldest item based on insertion time. | Simple, low-overhead scenarios. |
+| **TTL (Time-To-Live)** | Evicts items after a fixed duration (e.g., 3600s). | Ensuring data freshness and security. |
+
+---
+
+## Cache Invalidation: The "Hardest Problem"
+Keeping the cache in sync with the database is notoriously difficult. Common strategies include:
+1.  **Purge:** Explicitly deleting a specific key when the underlying data changes (e.g., user updates their profile).
+2.  **Refresh:** Automatically updating the cache value when the DB is updated (high consistency, high overhead).
+3.  **Banning:** Inactivating a pattern of keys (e.g., `user_*`) using wildcard tagging.
+4.  **Stale-While-Revalidate:** Returning stale data from the cache while triggering an asynchronous background update to fetch fresh data.
 
 ---
 
@@ -54,6 +74,26 @@ Consistent Hashing maps both the **Keys** and the **Physical Nodes** onto a logi
 ### Virtual Nodes (The Game Changer)
 In a simple ring, servers might be spaced unevenly, leading to a "Hot Spot" where one server handles 80% of the traffic. 
 **Virtual Nodes** solve this by mapping a single physical server to multiple points on the ring (e.g., Server A maps to VNodes A1, A2, A3...). This ensures a mathematically uniform distribution of data regardless of how many servers you have.
+
+---
+
+## Global vs. Local (Distributed) Caching
+Understanding where the cache lives is crucial for scaling.
+
+*   **Local In-Memory Cache (e.g., Guava, Caffeine):** Data is stored in the memory of the application server itself. 
+    *   *Pros:* Zero network latency (nanosecond access).
+    *   *Cons:* Each server has its own "island" of data, leading to low hit rates and inconsistency across a cluster.
+*   **Global Distributed Cache (e.g., Redis, Memcached):** A dedicated cluster of servers stores all cached data.
+    *   *Pros:* High hit rate (all app servers share the same data pool), easier to manage consistency.
+    *   *Cons:* Adds network latency (usually < 1ms) and a new infrastructure component to manage.
+
+---
+
+## Advanced Consistent Hashing
+While the simple Hash Ring works, industry-leading systems use optimized variations:
+*   **Ketama:** A widely used implementation of consistent hashing (used by Memcached clients) that pioneered the use of many virtual nodes.
+*   **Maglev (Google):** Uses a large lookup table (permutation table) to provide even more uniform distribution and faster lookups than a simple ring.
+*   **Rendezvous (Highest Random Weight) Hashing:** An alternative that eliminates the need for virtual nodes by calculating a "weight" for every node-item pair and picking the highest.
 
 ```mermaid
 flowchart TD

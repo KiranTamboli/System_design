@@ -34,6 +34,40 @@ flowchart TD
 4.  **Transaction Execution:** The consumer performs the required business operations and mutates the Main Database.
 5.  **State Update:** Upon successful database mutation, the consumer updates the Idempotency Store to permanently mark the key as successfully processed.
 
+## Implementation Patterns
+
+### 1. Database Unique Constraints (RDBMS)
+The simplest way to implement idempotency in a relational database is by using a unique index on the `idempotency_key` column.
+- **SQL Example:**
+  ```sql
+  INSERT INTO orders (idempotency_key, user_id, amount)
+  VALUES ('unique-uuid-123', 45, 100.00)
+  ON CONFLICT (idempotency_key) DO NOTHING;
+  ```
+This ensures that even if two threads try to insert the same order, only one succeeds without throwing an unhandled exception.
+
+### 2. Distributed Locks with TTL (Redis)
+For high-throughput systems, using Redis `SET` command with `NX` (Not Exists) and `EX` (Expire) flags is a common pattern.
+- **Command:** `SET idempotency_key_123 "processing" NX EX 3600`
+- If the command returns `OK`, the consumer proceeds. If it returns `null`, the message is already being processed or has been processed.
+
+---
+
+## Standardizing Idempotency: The Idempotency-Key Header
+The IETF is currently standardizing the `Idempotency-Key` HTTP request header. This pattern is already widely used by major APIs like Stripe and Adyen.
+- **Header:** `Idempotency-Key: <UUID>`
+- **Server Behavior:**
+    - **409 Conflict:** If a second request arrives while the first is still "In Progress".
+    - **200 OK (Cached):** If the request was previously completed, the server returns the *original* response body and status code from its cache.
+
+---
+
+## Client-Side Best Practices
+Idempotency is a contract between the client and the server. Clients must:
+1.  **Generate Keys Early:** The key should be generated at the moment the user intent is captured (e.g., when the "Pay" button is clicked).
+2.  **Retry with Exponential Backoff:** If a request fails due to a network error, the client should retry using an increasing delay (e.g., 1s, 2s, 4s, 8s).
+3.  **Add Jitter:** Introduce randomness to the backoff delay to prevent "Thundering Herd" problems where many clients retry at the exact same millisecond.
+
 ## Real-Time Examples
 
 ### 1. Payment Processing (FinTech)
@@ -54,4 +88,5 @@ flowchart TD
 *   **Added Complexity:** Requires persistent storage for transaction keys, extra caching layers, and state handling which clutters the codebase and infrastructure.
 *   **Storage Overhead:** Storing millions of idempotency keys requires considerable database/cache space. Keys must have a well-defined Time-To-Live (TTL) to periodically purge old identifiers so the table doesn't grow infinitely.
 *   **Performance Hit:** Every single message processing flow incurs a minimum of an extra database read (to check the key) and an extra write (to save the key state), increasing system latency.
-*   **Distributed Locking Issues:** Dealing with concurrent identical messages arriving at the *exact same millisecond* requires distributed locking mechanisms, further increasing the difficulty of engineering the consumer properly.
+*   **Distributed Locking Issues:** Dealing with concurrent identical messages arriving at the *exact same millisecond* requires distributed locking or optimistic concurrency control. Without proper locking, two threads might both see "Key Not Found" simultaneously and both proceed to process the message (the "Double Spend" problem).
+*   **Clock Skew & TTL Management:** If using TTLs to expire keys, inconsistent clocks across server clusters can cause keys to expire earlier on some nodes than others, leading to potential duplicates if a retry arrives right at the expiration boundary.
