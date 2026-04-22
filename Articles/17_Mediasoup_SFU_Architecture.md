@@ -82,3 +82,72 @@ A single high-quality producer is piped across dozens of servers to reach thousa
 - **Complexity:** Higher learning curve compared to "plug-and-play" solutions like Jitsi.
 - **Infrastructure Management:** Requires explicit management of multi-worker/multi-server logic (piping).
 - **No Built-in Signaling:** Developers must build their own Room/Peer management logic.
+
+---
+
+## Real-Time System Fundamentals
+
+### Latency in Video Streaming
+Real-time systems require extremely low latency for interactive experiences:
+- **Near Real-Time:** Single-digit latency (measured in milliseconds).
+- **High Latency:** Double or triple-digit latency (> 300ms), which starts to feel disconnected for live conversations.
+
+### Methods to Receive Updates from Server
+1. **Simple Polling:** Client periodically asks the server for updates.
+2. **Long Polling:** Server holds the request open until an update is available or a timeout occurs.
+3. **Server-Sent Events (SSE):** A unidirectional channel where the server pushes updates to the client.
+4. **WebSockets:** A full-duplex, bi-directional, long-lived communication channel.
+5. **WebRTC:** Used when low-latency audio/video streaming is involved.
+
+### Network Protocols: TCP vs. UDP
+
+#### TCP (Transmission Control Protocol)
+Uses a **3-way Handshake** for connection establishment:
+1. `SYN` (Client sends sequence number)
+2. `SYN-ACK` (Server responds with its own sequence and acknowledges client's)
+3. `ACK` (Client acknowledges server's response)
+
+**Key Features:**
+- **Sequence Guarantee:** Ensures packets arrive in order.
+- **Ack-Retransmission:** Retransmits lost packets.
+- **Congestion Window:** Adapts to network conditions to prevent overloading.
+
+#### UDP (User Datagram Protocol)
+Known as "**Fire and Forget**."
+- **Reliability:** No retransmissions (lower overhead, lower latency).
+- **Use Cases:** DNS, DHCP, VoIP, Online Gaming, and Video Streaming (where retransmitting a late frame is useless).
+
+---
+
+## WebRTC Deep Dive
+
+### The NAT Problem
+Most devices are behind a NAT (Network Address Translation) and have private IP addresses, making them unreachable from the public internet. For Peer-to-Peer (P2P) communication, peers must discover each other's public IP and port.
+
+**Solutions (ICE Framework):**
+1. **STUN Server (Session Traversal Utilities for NAT):** Tells a client its public IP/Port. Works in ~80-90% of cases.
+2. **TURN Server (Traversal Using Relays around NAT):** A relay server used when STUN fails (firewalls). All media flows through TURN (expensive and high bandwidth).
+3. **ICE (Interactive Connectivity Establishment):** A framework that coordinates STUN and TURN to gather "candidates" (Local > STUN > TURN).
+
+### Signaling and Session Setup
+WebRTC handles media but **not** session setup. A separate **Signaling Server** (using WebSockets or Firebase) is needed to exchange:
+- **SDP (Session Description Protocol):** An "Offer/Answer" exchange that describes media capabilities (codecs, resolutions).
+- **ICE Candidates:** Potential network paths to reach the peer.
+
+### WebRTC Internal Architecture
+WebRTC utilizes several layers of protocols, typically over **UDP**:
+- **getUserMedia:** Native browser API for camera/microphone access.
+- **RTCPeerConnection:** Handles the media transport.
+- **RTCDataChannel:** For low-latency data transfer.
+
+**Protocols involved:**
+- **SRTP:** Secure Real-time Transport Protocol (Encrypted media).
+- **DTLS:** Datagram Transport Layer Security (Secure handshake).
+- **SCTP:** Stream Control Transmission Protocol (Used by Data Channels).
+- **ICE:** Connectivity checks.
+
+---
+
+## Modern Evolution: QUIC and HTTP/3
+HTTP/3 uses the **QUIC** protocol, which is built on top of UDP. It provides **TCP-like reliability** with multiplexing and multi-streaming capabilities, effectively solving the Head-of-Line blocking problem commonly found in TCP-based HTTP/2.
+
