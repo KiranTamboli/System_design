@@ -70,6 +70,27 @@ Stores instances within the series that deviate from the master pattern (e.g., c
 | `title_override` | VARCHAR | Nullable. Title override |
 | `is_cancelled` | BOOLEAN | If true, this occurrence is deleted/hidden |
 
+### 3. `event_series_attendees` Table
+Stores default RSVP/participation status for attendees on the *entire* series.
+
+| Column Name | Type | Description |
+| :--- | :--- | :--- |
+| `series_id` | UUID | Foreign key referencing `event_series.id` |
+| `user_id` | UUID | User ID of the attendee |
+| `role` | VARCHAR | Role (e.g., `ORGANIZER`, `REQUIRED`, `OPTIONAL`) |
+| `status` | VARCHAR | Default status (e.g., `ACCEPTED`, `TENTATIVE`, `DECLINED`, `NEEDS_ACTION`) |
+
+### 4. `event_instance_attendees` Table
+Stores occurrence-specific RSVP overrides (e.g., when a user accepts the daily series but declines just one specific occurrence).
+
+| Column Name | Type | Description |
+| :--- | :--- | :--- |
+| `id` | UUID | Primary key |
+| `series_id` | UUID | Foreign key referencing `event_series.id` |
+| `recurrence_id` | TIMESTAMP | The original start time of the occurrence being overridden |
+| `user_id` | UUID | User ID of the attendee |
+| `status` | VARCHAR | Overridden status for this specific occurrence (e.g., `DECLINED`) |
+
 ---
 
 ## 4. The Architecture & Read/Write Flows
@@ -170,6 +191,33 @@ If a user searches for the word "Feedback" in their calendar, you cannot expand 
 ### 3. Fan-out for Group Invitations
 If a recurring event has 50 attendees, do not expand the event 50 times.
 *   **Solution:** The database stores one master event series owned by the organizer. The attendees' calendars store a reference pointer to this master series. The Expansion Engine resolves the pointers, caches the result, and serves the correct unified instances to all invitees.
+
+---
+
+## 7. Managing Group Invitations & RSVPs (Attending / Not Attending)
+
+For daily recurring events, managing invitee statuses (e.g. Accept, Decline, Tentative) requires handling both the **series-level response** and **individual instance-level responses**.
+
+### A. How RSVPs Are Stored
+1.  **Series-wide RSVP:** When a user accepts or declines the daily series invitation, their response is stored in `event_series_attendees`. This status applies by default to all daily occurrences.
+2.  **Single Occurrence RSVP:** If an attendee says *"I accept the daily meeting, but I cannot make it to this Wednesday's occurrence,"* the system **does not** create a full event exception (which would duplicate meeting metadata for everyone). Instead, it inserts a single record in `event_instance_attendees` setting `status = 'DECLINED'` for that attendee, linked to Wednesday's `recurrence_id`.
+
+### B. Displaying Attendee Details for a Specific Day
+When a user clicks on a specific instance (e.g. Wednesday, June 17 at 9:00 AM) to view details:
+1.  **Load Default List:** Fetch the full list of invitees and their default statuses from `event_series_attendees`.
+2.  **Apply Instance Statuses:** Fetch overrides from `event_instance_attendees` matching `recurrence_id = '2026-06-17T09:00:00'`.
+3.  **Merge & Render:** If a user has a row in the overrides, replace their default series status with their override status. The UI renders the final merged list, showing exactly who is attending *this specific day*.
+
+```mermaid
+graph TD
+    Query[Load Wednesday's Event Details] --> FetchDefault[Fetch default attendees from event_series_attendees]
+    Query --> FetchOverrides[Fetch overrides from event_instance_attendees for Wednesday's timestamp]
+    
+    FetchDefault --> Merge[Merge statuses: Override defaults if an instance-specific record exists]
+    FetchOverrides --> Merge
+    
+    Merge --> Display[Display resolved attendee list to UI: User A Accepted, User B Declined]
+```
 
 ---
 
