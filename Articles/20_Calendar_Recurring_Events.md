@@ -93,6 +93,39 @@ Stores occurrence-specific RSVP overrides (e.g., when a user accepts the daily s
 
 ---
 
+## 3.5. A Concrete Example: Daily Standup in July
+
+To see how this hybrid model works in practice, let's trace a real-world scenario:
+
+### The Scenario
+*   An organizer creates a **Daily Standup** meeting starting on June 1st.
+*   There are 5 invitees (including **User A**).
+*   On **July 4th**, the meeting is cancelled because it is a holiday.
+*   On **July 10th**, **User A** declines the meeting because they are on vacation (the other 4 people still attend).
+*   A user opens their calendar to view the month of **July**.
+
+### What Exists in the Database
+Even though the meeting runs every single day, the database only has a handful of rows:
+1.  **`event_series` (1 row):**
+    *   `id: 101`, `title: "Daily Standup"`, `start_date: "2026-06-01"`, `rrule: "FREQ=DAILY"`.
+2.  **`event_series_attendees` (5 rows):**
+    *   Links the 5 users to `series_id: 101` with status `ACCEPTED`.
+3.  **`event_exceptions` (1 row):**
+    *   `series_id: 101`, `recurrence_id: "2026-07-04T09:00:00"`, `is_cancelled: true`.
+4.  **`event_instance_attendees` (1 row):**
+    *   `series_id: 101`, `recurrence_id: "2026-07-10T09:00:00"`, `user_id: "UserA"`, `status: "DECLINED"`.
+
+### How the Calendar is Fetched & Displayed (July View)
+When a user requests their calendar for July 1 to July 31:
+1.  **Fetch from DB:** The backend queries `event_series` and fetches the single record for series `101`. It also fetches the exception row for July 4th and the attendee override row for July 10th.
+2.  **In-Memory Expansion:** The server does **not** read 31 separate daily records from the database. Instead, it reads the pattern (`FREQ=DAILY`) and generates a list of 31 dates in application memory.
+3.  **Apply Overrides & Exceptions:**
+    *   **July 4th:** The engine sees `is_cancelled: true` for this date in `event_exceptions` and removes July 4th from the generated list.
+    *   **July 10th:** The engine sees User A's override status is `DECLINED` in `event_instance_attendees` and changes their status from `ACCEPTED` to `DECLINED` for this day only.
+4.  **Render UI:** The backend sends the completed list of 30 clean occurrences to the frontend browser or mobile app to render on the grid.
+
+---
+
 ## 4. The Architecture & Read/Write Flows
 
 ```mermaid
