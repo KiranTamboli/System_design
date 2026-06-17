@@ -144,3 +144,5 @@ Before launching satellites into orbit, engineers deliberately program the onboa
 | **3D Localization** | Sphere intersections | Trilateration using at least 3 spheres |
 | **Quartz Clock Error** | Speed of light magnification ($1\mu s = 300m$) | 4th satellite adds a 4th equation to solve for clock bias ($t_b$) |
 | **Time Dilation** | Special & General Relativity ($+38\mu s/\text{day}$) | Pre-setting clocks slower before launch |
+
+<!-- updated -->
