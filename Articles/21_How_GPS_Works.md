@@ -17,34 +17,12 @@ The Global Positioning System (GPS) consists of three major segments:
 
 ```mermaid
 graph TD
-    subgraph space_segment [Space Segment]
-        Sat1[Satellite 1<br/>Broadcasts: ID, Pos, t1] 
-        Sat2[Satellite 2<br/>Broadcasts: ID, Pos, t2] 
-        Sat3[Satellite 3<br/>Broadcasts: ID, Pos, t3] 
-        Sat4[Satellite 4<br/>Broadcasts: ID, Pos, t4] 
-    end
+    Sat1[Satellite 1] -->|Radio Signal| Phone[Your Phone]
+    Sat2[Satellite 2] -->|Radio Signal| Phone
+    Sat3[Satellite 3] -->|Radio Signal| Phone
+    Sat4[Satellite 4] -->|Radio Signal| Phone
     
-    subgraph ground_control [Ground Control]
-        Ground[Ground Station] -->|Telemetry & Clock Correction| Sat1
-        Ground -->|Telemetry & Clock Correction| Sat2
-        Ground -->|Telemetry & Clock Correction| Sat3
-        Ground -->|Telemetry & Clock Correction| Sat4
-    end
-
-    subgraph user_segment [User Segment]
-        Phone[Your Phone]
-        Sat1 -->|Radio Signal| Phone
-        Sat2 -->|Radio Signal| Phone
-        Sat3 -->|Radio Signal| Phone
-        Sat4 -->|Radio Signal| Phone
-        
-        Phone --> Calc[1. Measure Time of Flight]
-        Phone --> Rel[2. Correct Relativistic Drift]
-        Phone --> Tri[3. Solve 4 equations for x, y, z, dt]
-        Phone --> Map[4. Display Coordinates]
-    end
-
-    style Phone fill:#f9f,stroke:#333,stroke-width:4px
+    Phone --> Calc[Calculate Distance]
 ```
 
 ### The Broadcast Protocol
