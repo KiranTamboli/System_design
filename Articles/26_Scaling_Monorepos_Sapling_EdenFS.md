@@ -51,8 +51,8 @@ graph TD
         Eden -->|3. Cache Miss: Fetch file content| Servers[Remote Blob & Metadata Servers]
     end
 
-    Servers -->>|4. Return main.py contents| Eden
-    Eden -->>|5. Serve file bytes| IDE
+    Servers -.->|4. Return main.py contents| Eden
+    Eden -.->|5. Serve file bytes| IDE
 ```
 
 ### How EdenFS Works
