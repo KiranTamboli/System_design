@@ -29,14 +29,27 @@ To ensure a well-crafted system, the design is established based on specific tra
 
 ```mermaid
 graph TD
-    Client[Client] -->|Shorten / Redirect| LB[Load Balancer]
+    Client[Client] -->|HTTP Request| RateLimit[Rate Limiter]
+    RateLimit --> LB[Load Balancer]
     LB --> Web[Web Servers]
-    Web -->|Cache Hit| Cache[(Redis / Memcached)]
-    Web -->|Cache Miss / Write| DB[(Relational Database)]
     
+    subgraph Core Services
+        Web -->|1. Generate ID| IDGen[Unique ID Generator]
+        Web -->|2. Check/Update Cache| Cache[(Cache <br> Redis/Memcached)]
+        Web -->|3. Read/Write URL| DB[(Relational DB <br> Sharded)]
+    end
+    
+    subgraph Auxiliary
+        Web -->|Log Clicks| Analytics[Analytics System]
+    end
+    
+    style RateLimit fill:#e1f5fe,stroke:#03a9f4,stroke-width:2px;
     style LB fill:#f9f,stroke:#333,stroke-width:2px;
-    style Cache fill:#ff9900,stroke:#333,stroke-width:2px;
-    style DB fill:#4caf50,stroke:#333,stroke-width:2px;
+    style Web fill:#c8e6c9,stroke:#4caf50,stroke-width:2px;
+    style IDGen fill:#ffe0b2,stroke:#ff9800,stroke-width:2px;
+    style Cache fill:#ffcc80,stroke:#ff9800,stroke-width:2px;
+    style DB fill:#b3e5fc,stroke:#03a9f4,stroke-width:2px;
+    style Analytics fill:#e1bee7,stroke:#9c27b0,stroke-width:2px;
 ```
 
 ## 3\. API Design and Redirection Mechanics
