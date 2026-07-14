@@ -44,7 +44,7 @@ graph TD
     
     subgraph Feature Flag Engine
         App -->|Check flag status| DB[(Feature Flag DB / Redis)]
-        DB -->>|Returns ON/OFF state| App
+        DB -.->|Returns ON/OFF state| App
     end
     
     App -->|Flag is OFF| Old[Route to Old Checkout]
@@ -77,20 +77,17 @@ To fix this, we need a method that is random across the whole population, but **
 
 We combine the `user_id` and the feature flag name, pass it through a cryptographic hash function (like MD5 or SHA-256), and take the modulo 100 to assign the user to a "bucket" between 0 and 99.
 
-```javascript
-function isFeatureEnabled(user_id, feature_name, rollout_percentage) {
-    // 1. Combine the inputs
-    const uniqueString = user_id + "_" + feature_name;
+```mermaid
+graph TD
+    Input[Input: user_id + feature_name] --> Hash[Cryptographic Hash Function <br/> e.g., SHA-256]
+    Hash --> Modulo[Modulo 100 <br/> hash % 100]
+    Modulo --> Bucket{Bucket Value: 0-99}
     
-    // 2. Hash the string into an integer
-    const hashInt = hashFunction(uniqueString);
+    Bucket -->|Value < 5| V2[Show Version 2 <br/> New Checkout]
+    Bucket -->|Value >= 5| V1[Show Version 1 <br/> Old Checkout]
     
-    // 3. Assign to a bucket between 0 and 99
-    const bucket = hashInt % 100;
-    
-    // 4. Check if the bucket falls within our rollout percentage
-    return bucket < rollout_percentage;
-}
+    style V2 fill:#4caf50,stroke:#333,stroke-width:2px;
+    style V1 fill:#f44336,stroke:#333,stroke-width:2px;
 ```
 
 ### Why Deterministic Bucketing is Brilliant:
