@@ -25,7 +25,21 @@ To ensure a well-crafted system, the design is established based on specific tra
 * **Long-term Storage:** Supporting 365 billion records over 10 years.  
 * **Storage Size:** Assuming an average URL length of 100 bytes, the total storage requirement is approximately 36.5 TB.
 
-## 2\. API Design and Redirection Mechanics
+## 2\. High-Level Architecture
+
+```mermaid
+graph TD
+    Client[Client] -->|Shorten / Redirect| LB[Load Balancer]
+    LB --> Web[Web Servers]
+    Web -->|Cache Hit| Cache[(Redis / Memcached)]
+    Web -->|Cache Miss / Write| DB[(Relational Database)]
+    
+    style LB fill:#f9f,stroke:#333,stroke-width:2px;
+    style Cache fill:#ff9900,stroke:#333,stroke-width:2px;
+    style DB fill:#4caf50,stroke:#333,stroke-width:2px;
+```
+
+## 3\. API Design and Redirection Mechanics
 
 The service utilizes a REST-style API to facilitate communication between clients and servers.
 
