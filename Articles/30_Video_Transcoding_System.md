@@ -95,3 +95,31 @@ graph TD
 * **Fault Tolerance:** If stitching fails, the Lambda can simply retry without losing the raw chunks.
 * **Serverless Scalability:** Using Lambda and EventBridge means the system scales automatically. If 500 classes end at exactly 5:00 PM, AWS spins up 500 Lambdas instantly to stitch the videos, with zero idle server costs.
 * **Speed:** Because chunks are uploaded during the live class, the only latency after the class ends is the stitching and transcoding process.
+
+---
+
+## 4. The Hidden Flaws (Why this isn't a perfect design)
+
+While the architecture above is a great starting point, it has significant bottlenecks that will fail at scale. In a system design interview, identifying these flaws is crucial:
+
+### Flaw 1: AWS Lambda Limitations
+AWS Lambda is not designed for heavy, sustained I/O operations on massive files. 
+* **Storage Limits:** Lambda's `/tmp` directory has a maximum limit of 10GB. A 2.5-hour raw 1080p video could easily exceed this, causing the Lambda to crash out of memory/storage during the stitching phase.
+* **Timeout Limits:** Lambda has a hard timeout of **15 minutes**. Downloading 200 chunks, stitching gigabytes of video, and uploading the massive merged file back to S3 could easily take longer than 15 minutes, resulting in a timeout failure.
+
+### Flaw 2: Wasted I/O and Double Processing
+The system reads all chunks from S3, writes a massive merged file to S3, and then the Elastic Transcoder reads that massive file from S3 *again* just to break it back down to transcode it. This is highly inefficient and incurs massive data transfer costs.
+
+### Flaw 3: Delayed Availability
+We are waiting for the class to end before we even start the heavy lifting (transcoding). For a 2.5-hour class, transcoding the entire merged file at the end will take a significant amount of time, frustrating students who want the recording immediately.
+
+---
+
+## 5. The Optimized Solution: On-The-Fly Transcoding
+
+To build a truly production-ready, highly scalable system, we must change the paradigm: **Do not wait for the class to end to start transcoding.**
+
+1. **Transcode Chunks Immediately:** As soon as a 1-minute chunk is uploaded to S3 *during* the live class, immediately trigger a serverless function or transcoder to convert *that specific chunk* into 1080p, 720p, and 480p variants.
+2. **Store Transcoded Chunks:** Save these processed chunks directly into the final CDN-facing S3 bucket.
+3. **Instant Availability at Class End:** When the instructor clicks "End Class", 99% of the video is **already transcoded**. The system only needs to process the very last chunk and generate the final `.m3u8` manifest playlist file. 
+4. **Result:** The recording becomes available to students within **seconds** of the class ending, completely bypassing the massive Lambda stitching bottleneck.
