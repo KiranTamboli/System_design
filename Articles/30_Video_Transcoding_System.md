@@ -45,6 +45,12 @@ The Elastic Transcoder outputs the final processed videos back to a destination 
 * A final event notifies the backend database that the video processing is complete.
 * The UI updates for students, changing the status to **"Recording Available"**.
 
+### Step 6: Delivery via Adaptive Bitrate Streaming (ABR)
+To send the video to customers with multiple variants (e.g., 1080p, 720p, 480p), the system uses **Adaptive Bitrate Streaming (ABR)** via protocols like HLS (HTTP Live Streaming) or MPEG-DASH.
+* **Manifests and Chunks:** Instead of a single MP4, the transcoder generates a master playlist file (e.g., `.m3u8`) and many small video segments for each resolution.
+* **CDN Caching:** A Content Delivery Network (CDN) like AWS CloudFront sits in front of the S3 bucket to cache these files globally.
+* **Smart Client Player:** The user's video player downloads the master playlist. It continuously monitors the user's internet speed and CPU. If their bandwidth drops, the player seamlessly switches to downloading the 480p chunks instead of the 1080p chunks, ensuring no buffering.
+
 ---
 
 ## 3. High-Level Architecture Diagram
@@ -65,7 +71,13 @@ graph TD
         S3_Merged -->|s3:put event| EB2[AWS EventBridge]
         EB2 -->|Trigger| Transcoder[AWS Elastic Transcoder]
         Transcoder -.->|Read Merged Video| S3_Merged
-        Transcoder -->|Write Transcoded Video| S3_Final[(S3: Final Video <br> /meeting/id/stitched/HQ)]
+        Transcoder -->|Write HLS Playlist & Chunks| S3_Final[(S3: Video Variants <br> 1080p, 720p, 480p)]
+    end
+    
+    subgraph Delivery & Playback
+        S3_Final -->|Origin| CDN[CDN <br> AWS CloudFront]
+        CDN -.->|Cache Delivery| Player[Student Video Player]
+        Player -.->|Adaptive Bitrate Request| CDN
     end
     
     style EB1 fill:#ff9900,stroke:#333,stroke-width:2px;
@@ -75,6 +87,8 @@ graph TD
     style S3_Chunks fill:#4caf50,stroke:#333,stroke-width:2px;
     style S3_Merged fill:#4caf50,stroke:#333,stroke-width:2px;
     style S3_Final fill:#4caf50,stroke:#333,stroke-width:2px;
+    style CDN fill:#e1bee7,stroke:#8e24aa,stroke-width:2px;
+    style Player fill:#b3e5fc,stroke:#03a9f4,stroke-width:2px;
 ```
 
 ### Why this architecture is powerful:
