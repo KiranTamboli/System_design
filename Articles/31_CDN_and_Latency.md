@@ -48,6 +48,56 @@ graph TD
     end
 ```
 
+## Deep Dive: Technical Details of CDN Operation
+
+Under the hood, a CDN relies on several networking and caching concepts to function efficiently:
+
+### 1. DNS Resolution & Anycast Routing
+How does the Indian user's browser know to talk to the Mumbai server instead of the US server? 
+When the browser resolves the CDN's domain name (e.g., `cdn.yourwebsite.com`), the DNS uses **Anycast Routing** or Geo-DNS. 
+- In Anycast, multiple edge servers around the world announce the exact same IP address.
+- The Internet's core routing protocols (like BGP) automatically route the user's request to the node with the shortest topological network path, which perfectly correlates to the closest geographical server.
+
+### 2. Cache Hits vs. Cache Misses
+- **Cache Hit:** The requested file is already stored on the edge server. The server immediately returns it to the user. (Lightning fast).
+- **Cache Miss:** The requested file is *not* on the edge server (either it's the first time it was requested, or the cache expired). The edge server acts as a proxy: it forwards the request to your **Origin Server** in the US, fetches the file, caches it locally for future users, and then returns it.
+
+### 3. Cache Invalidation and TTL (Time-To-Live)
+How does the CDN know when to update a file if you deploy a new version of a CSS file?
+- **TTL (Time-To-Live):** Files are cached with an expiration time, controlled by HTTP headers sent from your origin server (e.g., `Cache-Control: max-age=3600` caches the file for 1 hour). Once the TTL expires, the next request triggers a Cache Miss to fetch the fresh version.
+- **Cache Busting / Invalidation:** For immediate updates without waiting for TTL to expire, developers use file versioning in the URL (e.g., `style.v2.css`) or explicitly call the CDN's API to "purge" the stale cache.
+
+### 4. Push CDN vs. Pull CDN
+- **Pull CDN (Most Common):** The edge servers dynamically pull the content from your origin server only when a Cache Miss occurs. It is hands-off for developers.
+- **Push CDN:** You explicitly upload your static assets directly to the CDN's storage ahead of time (often during a CI/CD build step). The CDN serves exactly what you pushed.
+
+### Step-by-Step Request Lifecycle
+
+Here is the exact sequence of events when a user requests a file (`image.png`) that is served via a CDN:
+
+```mermaid
+sequenceDiagram
+    participant U as User (India)
+    participant DNS as DNS Server
+    participant CDN as CDN Edge Server (Mumbai)
+    participant Origin as Origin Server (US)
+
+    U->>DNS: Resolve domain (cdn.website.com)
+    Note over DNS: Anycast routing determines nearest node
+    DNS-->>U: Returns IP of nearest CDN Edge (Mumbai)
+    
+    U->>CDN: Request GET /image.png
+
+    alt Cache Hit (File exists & valid)
+        CDN-->>U: 200 OK (Returns cached image instantly)
+    else Cache Miss (File missing or expired)
+        CDN->>Origin: Request GET /image.png
+        Origin-->>CDN: 200 OK (Returns image)
+        Note over CDN: Stores image in local cache (until TTL expires)
+        CDN-->>U: 200 OK (Returns image to user)
+    end
+```
+
 ### The Impact
 Instead of an Indian user fetching all the content all the way from the US origin server, they get it from a nearby edge location (e.g., a server in Mumbai or Delhi). 
 
