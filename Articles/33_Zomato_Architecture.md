@@ -148,3 +148,31 @@ sequenceDiagram
 - **Reliability:** Message queues for guaranteed delivery, retry mechanisms, and frequent database backups.
 - **Security:** Standardized authentication (OAuth2), strict authorization, and data encryption (at rest and in transit).
 - **Monitoring:** Centralized logging, metric dashboards, and automated alerting.
+
+---
+
+## 6. Key Architectural Challenges
+
+Designing a system like Zomato comes with several highly complex engineering challenges:
+
+### 1. Handling Extreme Traffic Spikes
+Food delivery apps experience massive traffic spikes during specific windows (e.g., Friday evenings, lunch hours, or holidays). The system must rapidly auto-scale its backend services and heavily rely on caching (Redis) to prevent the database from buckling under sudden read-heavy loads.
+
+### 2. Real-Time Location Tracking
+Delivery partners move constantly, and users expect real-time ETA updates on a map. 
+- **Challenge:** Millions of GPS pings hitting the server every second.
+- **Solution:** Using highly efficient protocols like **WebSockets** or MQTT for real-time bidirectional communication, and decoupling the ingestion of location data via a fast message queue (Kafka) before processing it.
+
+### 3. Geospatial Searching
+When a user opens the app, they need to see restaurants within a specific radius (e.g., 5km) sorted by rating, delivery time, or relevance.
+- **Challenge:** Standard mathematical distance queries are far too slow for millions of users.
+- **Solution:** Using specialized geospatial indexing like **Elasticsearch** (Geo-point data types), Redis Geo-hashes, or PostgreSQL's PostGIS extension to perform spatial queries in milliseconds.
+
+### 4. Preventing Double Charges (Idempotency)
+If a user hits the "Pay" button twice due to network lag, the system cannot charge them twice.
+- **Solution:** Implementing strict **Idempotency Keys** at the API Gateway and Payment Service level to deduplicate payment requests.
+
+### 5. Managing Menu and Pricing Complexity
+Restaurant menus are highly dynamic (items go out of stock, prices surge, tax rates change based on jurisdiction). 
+- **Challenge:** Guaranteeing that the price a user sees on the menu screen is perfectly synchronized with the final checkout price, despite concurrent updates from the restaurant.
+- **Solution:** Heavy caching with aggressive cache-invalidation strategies, and relying on distributed transaction patterns (like SAGA) during the final order-placement phase to ensure data consistency.
