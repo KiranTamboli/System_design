@@ -10,57 +10,99 @@ The goal is to design a scalable, highly available system to handle millions of 
 ## 2. Architecture Diagram
 
 ```mermaid
-flowchart TD
-    subgraph Clients
-        UApp[User App<br/>Android/iOS]
-        WApp[Web App]
-        RApp[Restaurant App]
+flowchart LR
+    %% Grouping Clients
+    subgraph Clients["👥 Clients"]
+        direction TB
+        UserApp["📱 User App (iOS/Android)"]
+        WebApp["💻 Web App"]
+        RestApp["🏪 Restaurant App"]
     end
 
-    AG[API Gateway]
+    %% API Gateway
+    AG{"🚪 API Gateway<br/>(Rate Limiting, Auth, Routing)"}
 
-    subgraph Backend Services
-        US[User Service]
-        RS[Restaurant Service]
-        MS[Menu Service]
-        OS[Order Service]
-        PS[Payment Service]
-        DS[Delivery Service]
-        NS[Notification Service]
+    %% Backend Microservices
+    subgraph Backend["⚙️ Backend Services"]
+        direction TB
+        UserSvc["User Service"]
+        RestSvc["Restaurant Service"]
+        MenuSvc["Menu Service"]
+        OrderSvc["Order Service"]
+        PaySvc["Payment Service"]
+        DelSvc["Delivery Service"]
+        NotifSvc["Notification Service"]
     end
 
-    subgraph Data Stores
-        UDB[(User DB)]
-        RDB[(Restaurant DB)]
-        ODB[(Order DB)]
-        Redis[(Cache - Redis)]
-        NoSQL[(NoSQL - MongoDB)]
+    %% Data Stores
+    subgraph DataStores["🗄️ Data Stores"]
+        direction TB
+        UserDB[("User DB (MySQL)")]
+        RestDB[("Restaurant DB (PostgreSQL)")]
+        OrderDB[("Order DB (MySQL)")]
+        Cache[("Redis Cache")]
+        NoSQL[("MongoDB (Reviews/Logs)")]
     end
 
-    MQ[[Message Queue<br/>Kafka/RabbitMQ]]
-    ES[Search Service<br/>Elasticsearch]
-    S3[Image Storage<br/>S3/CDN]
-    ADP[Analytics Data Pipeline]
-
-    subgraph External Services
-        Maps[Google Maps]
-        PG[Payment Gateway]
-        SMS[SMS/Email]
-        PN[Push Notifications]
+    %% Async & Core Infra
+    subgraph CoreInfra["🏗️ Core Infrastructure"]
+        direction TB
+        Kafka[["Kafka (Message Queue)"]]
+        Elastic["Elasticsearch (Search)"]
+        S3["AWS S3 + CDN (Images)"]
+        Spark["Analytics Data Pipeline"]
     end
 
-    Clients --> AG
-    AG --> BackendServices
-    US & RS & MS & OS & PS & DS & NS <--> DataStores
-    OS & PS & DS --> MQ
-    RS & MS --> ES
-    US & RS & MS --> S3
-    BackendServices --> ADP
+    %% External APIs
+    subgraph External["🌐 External Services"]
+        direction TB
+        GMap["Google Maps"]
+        Stripe["Payment Gateway"]
+        Twilio["SMS/Email Service"]
+        FCM["Push Notifications"]
+    end
 
-    DS --> Maps
-    PS --> PG
-    NS --> SMS
-    NS --> PN
+    %% Connections
+    Clients -->|REST/GraphQL| AG
+    AG -->|Routes Request| Backend
+    
+    UserSvc <--> UserDB
+    RestSvc <--> RestDB
+    MenuSvc <--> RestDB
+    OrderSvc <--> OrderDB
+    
+    Backend -.->|Reads/Writes| Cache
+    Backend -.->|Logs/Reviews| NoSQL
+
+    OrderSvc -->|Publish Event| Kafka
+    PaySvc -->|Publish Event| Kafka
+    DelSvc -->|Publish Event| Kafka
+
+    RestSvc -->|Sync Data| Elastic
+    MenuSvc -->|Sync Data| Elastic
+    
+    Backend -->|Upload/Fetch| S3
+    Backend -->|Stream Events| Spark
+
+    DelSvc -->|Fetch ETA| GMap
+    PaySvc -->|Process| Stripe
+    NotifSvc -->|Trigger| Twilio
+    NotifSvc -->|Trigger| FCM
+
+    %% Styling
+    classDef client fill:#e3f2fd,stroke:#1e88e5,stroke-width:2px,color:#000;
+    classDef gateway fill:#ffe0b2,stroke:#f57c00,stroke-width:2px,color:#000;
+    classDef service fill:#e8f5e9,stroke:#43a047,stroke-width:2px,color:#000;
+    classDef database fill:#f3e5f5,stroke:#8e24aa,stroke-width:2px,color:#000;
+    classDef infra fill:#eceff1,stroke:#546e7a,stroke-width:2px,color:#000;
+    classDef external fill:#fff3e0,stroke:#fb8c00,stroke-width:2px,color:#000;
+
+    class UserApp,WebApp,RestApp client;
+    class AG gateway;
+    class UserSvc,RestSvc,MenuSvc,OrderSvc,PaySvc,DelSvc,NotifSvc service;
+    class UserDB,RestDB,OrderDB,Cache,NoSQL database;
+    class Kafka,Elastic,S3,Spark infra;
+    class GMap,Stripe,Twilio,FCM external;
 ```
 
 *(Note: The diagram above illustrates the high-level flow and interactions between various microservices, data stores, and external components.)*
